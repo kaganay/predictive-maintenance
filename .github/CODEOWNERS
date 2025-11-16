@@ -1,0 +1,11 @@
+# Default owners
+*       @kaganay
+
+# Backend (.NET)
+/src/**                 @kaganay
+
+# Workflows
+/.github/**             @kaganay
+
+# Docs
+/docs/**                @kaganay
