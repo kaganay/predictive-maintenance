@@ -34,7 +34,7 @@ jobs:
         run: dotnet publish src/Presentation/AygazPredictiveMaintenance.Web/PredictiveMaintenance.Web.csproj -c Release -o ./publish/web --no-build
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: predictive-maintenance-${{ github.ref_name }}
           path: |
