@@ -16,6 +16,7 @@ public static class ApplicationServiceRegistration
         services.AddScoped<IEquipmentService, EquipmentService>();
         services.AddScoped<ISensorDataService, SensorDataService>();
         services.AddScoped<IPredictionService, PredictionService>();
+        services.AddScoped<IAlertService, AlertService>();
 
         return services;
     }

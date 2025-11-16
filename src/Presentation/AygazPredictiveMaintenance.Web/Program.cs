@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PredictiveMaintenance.Application.DependencyInjection;
 using PredictiveMaintenance.Infrastructure.Data;
 using PredictiveMaintenance.Infrastructure.DependencyInjection;
+using PredictiveMaintenance.Web.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,23 +32,24 @@ app.UseAuthorization();
 
 app.MapControllerRoute(
     name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+    pattern: "{controller=Dashboard}/{action=Index}/{id?}");
 
 app.MapHub<NotificationHub>("/notificationHub");
 
-// Migrate database
+// Ensure database exists & seed demo data
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<ApplicationDbContext>();
-        context.Database.Migrate();
+        context.Database.EnsureCreated();
+        DataSeeder.SeedAsync(context).GetAwaiter().GetResult();
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database.");
+        logger.LogError(ex, "An error occurred while ensuring the database is created and seeded.");
     }
 }
 

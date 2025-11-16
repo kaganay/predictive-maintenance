@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PredictiveMaintenance.Application.DependencyInjection;
 using PredictiveMaintenance.Infrastructure.Data;
 using PredictiveMaintenance.Infrastructure.DependencyInjection;
+using PredictiveMaintenance.API.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,22 +10,21 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSignalR();
 
-// CORS
+// CORS for local web app
+const string DashboardCors = "DashboardCors";
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
+    options.AddPolicy(DashboardCors, policy =>
+        policy.WithOrigins("http://localhost:5003")
+              .AllowAnyHeader()
               .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
+              .AllowCredentials());
 });
 
-// Infrastructure services
+// Infrastructure & Application services
 builder.Services.AddInfrastructureServices(builder.Configuration);
-
-// Application services
 builder.Services.AddApplicationServices();
 
 var app = builder.Build();
@@ -36,25 +36,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseCors(DashboardCors);
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
 app.UseAuthorization();
-app.MapControllers();
 
-// Migrate database
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<ApplicationDbContext>();
-        context.Database.Migrate();
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database.");
-    }
-}
+app.MapControllers();
+app.MapHub<NotificationHub>("/notificationHub");
 
 app.Run();

@@ -4,7 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using PredictiveMaintenance.Domain.Interfaces;
 using PredictiveMaintenance.Infrastructure.Data;
 using PredictiveMaintenance.Infrastructure.Repositories;
-using PredictiveMaintenance.Infrastructure.Services;
+using PredictiveMaintenance.Infrastructure.Services.RabbitMQ;
+using PredictiveMaintenance.Infrastructure.Services.Redis;
+using PredictiveMaintenance.Infrastructure.Services.MLService;
 
 namespace PredictiveMaintenance.Infrastructure.DependencyInjection;
 
@@ -12,9 +14,15 @@ public static class InfrastructureServiceRegistration
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // Database
+        // Database (with safe fallback)
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = "Server=(localdb)\\MSSQLLocalDB;Database=PredictiveMaintenanceDb_Fresh;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True";
+        }
+
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+            options.UseSqlServer(connectionString));
 
         // Repositories
         services.AddScoped<IEquipmentRepository, EquipmentRepository>();
@@ -23,11 +31,16 @@ public static class InfrastructureServiceRegistration
         services.AddScoped<IAlertRepository, AlertRepository>();
         services.AddScoped<IMaintenanceHistoryRepository, MaintenanceHistoryRepository>();
 
-        // Services
+        // External services
         services.AddSingleton<IMessageQueueService, RabbitMQService>();
         services.AddSingleton<ICacheService, RedisCacheService>();
-        services.AddHttpClient<IMLService, MLServiceClient>();
-        services.AddScoped<IMLService, MLServiceClient>();
+
+        // ML Service client registration via factory (uses BaseUrl from config)
+        services.AddSingleton<IMLService>(sp =>
+        {
+            var baseUrl = configuration["MLService:BaseUrl"] ?? "http://localhost:8000";
+            return new MLServiceClient(baseUrl);
+        });
 
         return services;
     }

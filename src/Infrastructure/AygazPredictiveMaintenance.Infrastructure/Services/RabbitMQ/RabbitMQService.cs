@@ -2,6 +2,7 @@ using System.Text;
 using Newtonsoft.Json;
 using PredictiveMaintenance.Domain.Interfaces;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
 
 namespace PredictiveMaintenance.Infrastructure.Services.RabbitMQ;
 
@@ -48,7 +49,7 @@ public class RabbitMQService : IMessageQueueService, IDisposable
     {
         _channel.QueueDeclare(queue: queueName, durable: true, exclusive: false, autoDelete: false, arguments: null);
 
-        var consumer = new RabbitMQ.Client.Events.EventingBasicConsumer(_channel);
+        var consumer = new EventingBasicConsumer(_channel);
         consumer.Received += async (model, ea) =>
         {
             var body = ea.Body.ToArray();

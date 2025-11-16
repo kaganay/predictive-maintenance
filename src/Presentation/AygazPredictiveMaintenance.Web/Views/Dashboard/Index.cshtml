@@ -1,0 +1,247 @@
+@{
+    ViewData["Title"] = "Predictive Maintenance Dashboard";
+}
+
+<div class="container py-4">
+    <div class="d-flex align-items-center mb-4">
+        <h2 class="mb-0">Predictive Maintenance Dashboard</h2>
+        <span class="badge bg-success ms-3">Live</span>
+    </div>
+
+    <div class="row g-3 mb-3 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label">Ekipman</label>
+            <select id="equipmentSelect" class="form-select"></select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Başlangıç</label>
+            <input id="startInput" type="datetime-local" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Bitiş</label>
+            <input id="endInput" type="datetime-local" class="form-control" />
+        </div>
+        <div class="col-md-2 d-grid">
+            <button id="refreshBtn" class="btn btn-primary">Yenile</button>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted">Toplam Ekipman</div>
+                    <div id="statTotalEquipments" class="display-6 fw-bold">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted">Kritik Tahminler</div>
+                    <div id="statCritical" class="display-6 fw-bold text-danger">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted">Okunmamış Uyarı</div>
+                    <div id="statAlerts" class="display-6 fw-bold text-warning">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted">Sistem Durumu</div>
+                    <div class="display-6 fw-bold text-success">Aktif</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white fw-semibold">Seçili Ekipman Sensör Trendleri</div>
+                <div class="card-body">
+                    <div id="chartLoader" class="text-center text-muted py-3 d-none">Yükleniyor...</div>
+                    <canvas id="sensorChart" height="120"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-white fw-semibold">Canlı Uyarılar</div>
+                <div class="card-body">
+                    <ul id="alertsList" class="list-group list-group-flush"></ul>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-white fw-semibold">Kritik Tahminler</div>
+                <div class="card-body">
+                    <ul id="criticalList" class="list-group list-group-flush"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+<script>
+    const API_BASE = 'http://localhost:5136/api';
+    const SIGNALR_URL = 'http://localhost:5136/notificationHub';
+    
+    // Ensure signalR is available globally
+    if (typeof signalR === 'undefined') {
+        console.error('SignalR not loaded');
+    }
+
+    let sensorChart;
+    function buildChart(labels, seriesByType) {
+        const ctx = document.getElementById('sensorChart');
+        const datasets = Object.keys(seriesByType).map((k, i) => ({
+            label: k,
+            data: seriesByType[k],
+            borderColor: ['#dc3545','#0d6efd','#198754','#fd7e14','#6f42c1'][i%5],
+            tension: .3
+        }));
+        if (sensorChart) sensorChart.destroy();
+        sensorChart = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, plugins: { legend: { position: 'bottom' } } } });
+    }
+
+    async function fetchJson(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return await res.json();
+    }
+
+    function setLoadingChart(loading) {
+        document.getElementById('chartLoader').classList.toggle('d-none', !loading);
+    }
+
+    async function populateEquipments() {
+        const equipments = await fetchJson(`${API_BASE}/equipment`);
+        const sel = document.getElementById('equipmentSelect');
+        sel.innerHTML = '';
+        equipments.forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.id ?? e.Id ?? e.equipmentId;
+            opt.textContent = `${opt.value} - ${e.name ?? e.Name}`;
+            sel.appendChild(opt);
+        });
+        document.getElementById('statTotalEquipments').innerText = equipments.length;
+        return equipments;
+    }
+
+    async function loadChart() {
+        const sel = document.getElementById('equipmentSelect');
+        if (!sel.value) return;
+        const end = new Date(document.getElementById('endInput').value || new Date());
+        const start = new Date(document.getElementById('startInput').value || (new Date(end.getTime() - 24*60*60*1000)));
+        setLoadingChart(true);
+        try {
+            const qs = `startDate=${start.toISOString()}&endDate=${end.toISOString()}`;
+            const data = await fetchJson(`${API_BASE}/sensordata/equipment/${sel.value}/range?${qs}`);
+            const byHour = {};
+            const types = new Set();
+            data.forEach(d => {
+                const t = new Date(d.timestamp || d.Timestamp);
+                const key = `${t.getHours().toString().padStart(2,'0')}:00`;
+                byHour[key] = byHour[key] || {};
+                const type = (d.sensorType || d.SensorType) + '';
+                types.add(type);
+                byHour[key][type] = (byHour[key][type] || 0) + (d.value || d.Value);
+            });
+            const labels = Object.keys(byHour).sort();
+            const seriesByType = {};
+            [...types].forEach(tp => { seriesByType[tp] = labels.map(h => (byHour[h] && byHour[h][tp]) || 0); });
+            buildChart(labels, seriesByType);
+        } finally {
+            setLoadingChart(false);
+        }
+    }
+
+    async function loadLists() {
+        const critical = await fetchJson(`${API_BASE}/prediction/critical`);
+        document.getElementById('statCritical').innerText = critical.length;
+        const criticalList = document.getElementById('criticalList');
+        criticalList.innerHTML = '';
+        critical.forEach(p => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `<span>Ekipman: ${p.equipmentId ?? p.EquipmentId}</span><span class="fw-bold text-danger">%${Math.round(p.failureProbability ?? p.FailureProbability)}</span>`;
+            criticalList.appendChild(li);
+        });
+
+        const alerts = await fetchJson(`${API_BASE}/alert/unread`);
+        document.getElementById('statAlerts').innerText = alerts.length;
+        const alertsList = document.getElementById('alertsList');
+        alertsList.innerHTML = '';
+        alerts.forEach(a => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item d-flex justify-content-between align-items-center';
+            li.innerHTML = `<span>${a.message ?? a.Message}</span><span class="badge bg-danger">${a.severity ?? a.Severity}</span>`;
+            alertsList.appendChild(li);
+        });
+    }
+
+    async function initDashboard() {
+        try {
+            const eqs = await populateEquipments();
+            const end = new Date();
+            const start = new Date(end.getTime() - 24*60*60*1000);
+            document.getElementById('endInput').value = end.toISOString().slice(0,16);
+            document.getElementById('startInput').value = start.toISOString().slice(0,16);
+            if (eqs.length) await loadChart();
+            await loadLists();
+        } catch (e) { console.error(e); }
+    }
+
+    // SignalR real-time updates
+    let connection;
+    async function initSignalR() {
+        if (typeof window !== 'undefined' && window.signalR) {
+            connection = new window.signalR.HubConnectionBuilder()
+                .withUrl(SIGNALR_URL)
+                .build();
+
+            connection.on("NewAlert", (alert) => {
+                console.log("New alert received:", alert);
+                loadLists(); // Refresh alerts and critical lists
+            });
+
+            connection.on("PredictionUpdated", (prediction) => {
+                console.log("Prediction updated:", prediction);
+                loadLists(); // Refresh predictions
+            });
+
+            try {
+                await connection.start();
+                console.log("SignalR connected");
+            } catch (err) {
+                console.error("SignalR connection error:", err);
+            }
+        } else {
+            console.warn("SignalR not available - skipping real-time updates");
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await initDashboard();
+        await initSignalR();
+    });
+    document.getElementById('refreshBtn').addEventListener('click', loadChart);
+    document.getElementById('equipmentSelect').addEventListener('change', loadChart);
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+        loadLists();
+        if (document.getElementById('equipmentSelect').value) {
+            loadChart();
+        }
+    }, 30000);
+</script>
