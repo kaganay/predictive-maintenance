@@ -13,6 +13,14 @@
 
 </div>
 
+> Kısa Özet (TR)
+>
+> - IoT sensör verilerini (.NET Web API) SQL Server'a kaydeder; RabbitMQ ile asenkron işler.
+> - Python ML servisi (LSTM) anomali tespiti yapar ve arıza olasılığı hesaplar.
+> - SignalR, gerçek zamanlı alarm bildirimi ve bakım önerileri sağlar.
+> - Clean Architecture: Presentation, Application, Domain, Infrastructure.
+> - Teknolojiler: ASP.NET Core MVC & Web API, SignalR, Redis, RabbitMQ, TensorFlow/FastAPI, Chart.js, Bootstrap.
+
 ---
 
 ## 📋 Proje Özeti

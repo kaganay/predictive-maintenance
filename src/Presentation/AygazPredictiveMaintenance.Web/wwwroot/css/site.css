@@ -19,4 +19,13 @@ html {
 
 body {
   margin-bottom: 60px;
+  background-color: #f7f9fb;
 }
+
+.card { border: 0; box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,.05); }
+.card:hover { box-shadow: 0 0.5rem 1.25rem rgba(0,0,0,.08); transition: box-shadow .2s ease; }
+.navbar-brand { letter-spacing: .2px; }
+.badge { font-weight: 500; }
+#sensorChart { max-height: 340px; }
+.list-group-item { border: 0; border-bottom: 1px solid rgba(0,0,0,.05); }
+footer { background: #fff; }
