@@ -1,0 +1,40 @@
+name: .NET CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore PredictiveMaintenance.sln
+
+      - name: Build
+        run: dotnet build PredictiveMaintenance.sln --configuration Release --no-restore
+
+      - name: Publish API
+        run: dotnet publish src/Presentation/AygazPredictiveMaintenance.API/PredictiveMaintenance.API.csproj -c Release -o ./publish/api --no-build
+
+      - name: Publish Web
+        run: dotnet publish src/Presentation/AygazPredictiveMaintenance.Web/PredictiveMaintenance.Web.csproj -c Release -o ./publish/web --no-build
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: predictive-maintenance-artifacts
+          path: |
+            publish/api
+            publish/web
