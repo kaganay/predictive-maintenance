@@ -13,7 +13,7 @@ COPY src/Presentation/AygazPredictiveMaintenance.Web/ ./src/Presentation/AygazPr
 RUN dotnet restore PredictiveMaintenance.sln
 RUN dotnet publish src/Presentation/AygazPredictiveMaintenance.Web/PredictiveMaintenance.Web.csproj -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app/publish .
 EXPOSE 8080
