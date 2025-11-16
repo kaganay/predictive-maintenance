@@ -1,0 +1,21 @@
+# Web Dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Copy solution and projects
+COPY PredictiveMaintenance.sln ./
+COPY src/Domain/AygazPredictiveMaintenance.Domain/ ./src/Domain/AygazPredictiveMaintenance.Domain/
+COPY src/Application/AygazPredictiveMaintenance.Application/ ./src/Application/AygazPredictiveMaintenance.Application/
+COPY src/Infrastructure/AygazPredictiveMaintenance.Infrastructure/ ./src/Infrastructure/AygazPredictiveMaintenance.Infrastructure/
+COPY src/Presentation/AygazPredictiveMaintenance.Web/ ./src/Presentation/AygazPredictiveMaintenance.Web/
+
+# Restore and publish
+RUN dotnet restore PredictiveMaintenance.sln
+RUN dotnet publish src/Presentation/AygazPredictiveMaintenance.Web/PredictiveMaintenance.Web.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+ENTRYPOINT ["dotnet", "PredictiveMaintenance.Web.dll"]
